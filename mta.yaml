@@ -1,43 +1,93 @@
 _schema-version: 3.3.0
 ID: e_learning
+description: A simple CAP project.
 version: 1.0.0
-description: "A simple CAP project."
+modules:
+- name: e_learning-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: e_learning-db
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    instances: 1
+    memory: 512M
+  build-parameters:
+    builder: npm-ci
+- name: e_learning-db-deployer
+  type: hdb
+  path: db
+  requires:
+  - name: e_learning-db
+  parameters:
+    buildpack: nodejs_buildpack
+- name: e_learning-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: e_learning-destination-service
+    parameters:
+      content-target: true
+  - name: e_learning_html_repo_host
+    parameters:
+      service-key:
+        name: e_learning_html_repo_host-key
+  - name: uaa_e_learning
+    parameters:
+      service-key:
+        name: uaa_e_learning-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: ManagedAppRouter_e_learning_html_repo_host
+          ServiceInstanceName: e_learning-html5-app-host-service
+          ServiceKeyName: e_learning_html_repo_host-key
+          sap.cloud.service: ManagedAppRouter
+        - Authentication: OAuth2UserTokenExchange
+          Name: ManagedAppRouter_uaa_e_learning
+          ServiceInstanceName: e_learning-xsuaa-service
+          ServiceKeyName: uaa_e_learning-key
+          sap.cloud.service: ManagedAppRouter
+        existing_destinations_policy: ignore
+  build-parameters:
+    no-source: true
+resources:
+- name: e_learning-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+- name: e_learning-destination-service
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      version: 1.0.0
+    service: destination
+    service-name: e_learning-destination-service
+    service-plan: lite
+- name: e_learning_html_repo_host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: e_learning-html5-app-host-service
+    service-plan: app-host
+- name: uaa_e_learning
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: e_learning-xsuaa-service
+    service-plan: application
 parameters:
   enable-parallel-deployments: true
 build-parameters:
   before-all:
-    - builder: custom
-      commands:
-        - npm ci
-        - npx cds build --production
-modules:
-  - name: e_learning-srv
-    type: nodejs
-    path: gen/srv
-    parameters:
-      instances: 1
-      memory: 512M
-      buildpack: nodejs_buildpack
-    build-parameters:
-      builder: npm-ci
-    provides:
-      - name: srv-api # required by consumers of CAP services (e.g. approuter)
-        properties:
-          srv-url: ${default-url}
-    requires:
-      - name: e_learning-db
-
-  - name: e_learning-db-deployer
-    type: hdb
-    path: db
-    parameters:
-      buildpack: nodejs_buildpack
-    requires:
-      - name: e_learning-db
-
-resources:
-  - name: e_learning-db
-    type: com.sap.xs.hdi-container
-    parameters:
-      service: hana
-      service-plan: hdi-shared
+  - builder: custom
+    commands:
+    - npm ci
+    - npx cds build --production
